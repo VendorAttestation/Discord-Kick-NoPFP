@@ -1,27 +1,31 @@
 import discord
 from discord.ext import commands
-from discord_slash import SlashCommand, SlashContext
+from discord import Intents, app_commands
 import asyncio
 
-intents = discord.Intents.default()
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix='!', intents=intents)
+
+    async def setup_hook(self):
+        self.tree.add_command(check_all_members, guild=None)
+        await self.tree.sync()
+
+intents = Intents.default()
 intents.members = True
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-slash = SlashCommand(bot, sync_commands=True)
+bot = MyBot()
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}!')
 
-@slash.slash(
-    name="check_all_members",
-    description="Check all members for a profile picture and kick those without one"
-)
-async def check_all_members(ctx: SlashContext):
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("You do not have permission to use this command.", hidden=True)
+@app_commands.command(name="check_all_members", description="Check all members for a profile picture and kick those without one")
+async def check_all_members(interaction: discord.Interaction):
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return
-    guild = ctx.guild
+    guild = interaction.guild
     member_count = 0
     for member in guild.members:
         if member.bot:
@@ -32,10 +36,10 @@ async def check_all_members(ctx: SlashContext):
             await asyncio.sleep(2)
 
 async def check_pfp(member):
-    if member.avatar is None:
+    if member.display_avatar.url == member.default_avatar.url:
         try:
             await member.send(
-                "You've been kicked from your server name for not having a profile picture. "
+                "You've been kicked from Your Server Name for not having a profile picture. "
                 "If you think this was an error, you can rejoin at https://discord.gg/yourinvite"
             )
         except discord.errors.Forbidden:
