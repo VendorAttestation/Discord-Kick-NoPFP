@@ -1,18 +1,15 @@
 import discord
 from discord.ext import commands
-from discord import Intents, app_commands
-import asyncio
 
 class MyBot(commands.Bot):
     def __init__(self):
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.message_content = True
         super().__init__(command_prefix='!', intents=intents)
 
     async def setup_hook(self):
-        self.tree.add_command(check_all_members, guild=None)
         await self.tree.sync()
-
-intents = Intents.default()
-intents.members = True
 
 bot = MyBot()
 
@@ -20,33 +17,39 @@ bot = MyBot()
 async def on_ready():
     print(f'Logged in as {bot.user}!')
 
-@app_commands.command(name="check_all_members", description="Check all members for a profile picture and kick those without one")
-async def check_all_members(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
-        return
-    guild = interaction.guild
+@bot.slash_command(name="check_all_members", description="Check all members for a profile picture and kick those without one")
+@commands.has_permissions(administrator=True)
+async def check_all_members(ctx: discord.ApplicationContext):
+    guild = ctx.guild
+    total_members = sum(1 for member in guild.members if not member.bot)
+    message = await ctx.respond(f"Checking members: 0/{total_members}", ephemeral=True)
+
     member_count = 0
     for member in guild.members:
         if member.bot:
             continue
-        await check_pfp(member)
+        await check_pfp(member, ctx)
         member_count += 1
-        if member_count % 10 == 0:
-            await asyncio.sleep(2)
+        if member_count % 10 == 0 or member_count == total members:
+            await message.edit_original_response(content=f"Checking members: {member_count}/{total_members}")
 
-async def check_pfp(member):
+async def check_pfp(member, ctx):
+    if any(role.name == 'Server Booster' for role in member.roles):
+        print(f"Skipping {member.name}, a server booster.")
+        return
+
     if member.display_avatar.url == member.default_avatar.url:
         try:
             await member.send(
                 "You've been kicked from Your Server Name for not having a profile picture. "
                 "If you think this was an error, you can rejoin at https://discord.gg/yourinvite"
             )
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             print(f"Can't send DM to {member.name}.")
+
         try:
             await member.kick(reason="No profile picture")
-        except discord.errors.Forbidden:
+        except discord.Forbidden:
             print(f"Can't kick {member.name}.")
 
 bot.run('your_token_here')
